@@ -1,0 +1,38 @@
+In this project, we mainly follow the paper "tempoGAN: A Temporally Coherent, Volumetric GAN for Super-resolution Fluid Flow" to do a super-resolution task for shallow water equations' simulation results.
+
+In the original paper, they use the 2D or 3D smoke simulation results as data to train or test with a modified GAN network. For example, in 2D, the input data is pairs of low resolution smoke (density, velocity field) and its high resolution smoke density counterparts.  Firstly, they run numerical simulation with high resolution grid and get the high resolution results(density field and velocity field) and do a gaussian blur with fixed sigma and next do a nearest neighbour interpolation to get its low resoluton counterparts.
+
+The GAN's generator will get input of low resolution density field and velocity field and give out high resolution fake density field and a spatial discriminator will judge whether it is real data by numerical simulation or generator's faked results and a tempo discriminator will judge continuous three frames are real data or generator's faked results. This is the work of this paper mainly. In addition, they process the raw data with some rotation transformation to do a data augmentation.
+
+We follow this paper's idea to do another super-resolution task for a different physics process-- shallow water equation's simulation. Different from the 2D or 3D NS equation driven smoke simulation, the SWE gives simulation for water with a 2.5D  status. Under the assumption that the vertical velocity component vz is constant, the water will be modeled as a varying height field h as time passes. So the simulation data can be viewed as a height field time sequence and two velocity field time sequence for vx and vy.  These data are the same as the original 2D smoke data in the form but essentially the height field can change with starting value limitation. It can be in [5,15] or [50,150] or even [500,1500] but the density field data is bounded in [0,1]. This leads that the GAN network can not learn the arbitrary bounded value's height field's super resolution mapping or it can be very difficult to learn!! So we now simplify this question with these assumption and do our experiments.
+
+We run shallow water equation's simulation with fixed high resolution grid ,dt, gravity, fluid density and a fatten height field which height is 5 and we randomly give  three points location and lift the starting height from 5 to 15 in these three points location with a zero starting velocity field and run the simulation by standard MAC finite difference discretization. After getting the high resolution results, we do a gaussian blur and a nearest neighbor interpolation to get the low resolution data. For example, in each folder ./data_velocity_2/xxx, there saves high resolution sequence data and low resolution counterparts.
+
+1. we train our GAN with folder 0-5's data as the tempoGAN's orginal training method and test it on the folder 6's data. We can still get blur output no matter how I do loss weight or learning rate or iteration number for generator and discriminator. Mainly like this (fig 0):
+
+
+2. And in the original paper, they show that when use a negative layer loss weight, it gives sharp boundary feature preserving. But in 1's training configuration, it shows that it can diverge easily in GAN' training process. fig 1:
+
+
+3.Under this dilemma, I simplify the train data with only one frame's height and velocity data to test whether the GAN has the ability to recover the high resolution's ring cycle details. So we still train the GAN with all training data-- only one frame's data.
+
+3.1 under this motivation, we can see that if the input low resolution data includes velocity, it can give out more continuous faked data. fig 2:
+
+3.2 This frame data will highly decide what feature to be learned. And it shows that the GAN can learn the feature including thin details and when you test the GAN with another frame including the similar feature, it will be recovered. fig 3:
+
+3.3 The convolution can not learn the feature's orientation which means that the learned feature dose not meet the rotation invariant. fig 4:
+
+This can be solved by rotating the training data or use a rotation invariant CNN for generator. Maybe a contribution, because the high symmetry ring nature of SWE simulation, the rotation invariant should be solved.
+ 
+3.4 This setting leads that this GAN can not learn other feature, so when testing data dose not include the similar feature as the trained frame's data, it will not be recovered correctly. fig 5:
+
+3.5 We show that when we use only one frame's density and velocity data as generator's input and do not use the tempoGAN's tempo discriminator and only use the spatial discriminator, if the spatial discriminator does not include enough nonlinear non-linearity, the result will be only suboptimal. fig 6:
+
+And we show that when we  use  the tempoGAN's original spatial discriminator, the non-linearity is still not enough, because we find that when we do about 50000 iteration, this spatial discriminator loss will be about 1.4 which means that spatial discriminator does not have enough ability to judge the answer correctly and increasing the non-linearity will relieve this problem. fig 7:
+
+
+4. No matter the 3's training method or the 1's training method, it will only suit for the similar height field bounded by [5,15]. It can not be used when you change any boundary condition and parameter:  gravity, fluid density or other height data such as bounded by [10,20]. fig 6:
+
+
+5. Whether it can be used for low resolution simulation data to high resolution simulation mapping ?Not a super resolution task, it will try to map the low resolution numerical simulation data to it high resolution counterparts.  Even in the 3's training setting, we train the one frame's low simulation to its high simulation mapping and test. It shows the learned feature can not be used even for the next frame data's mapping. fig 7:
+
